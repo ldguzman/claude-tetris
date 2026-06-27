@@ -5,120 +5,48 @@ on:
     types: [opened, edited]
 
 jobs:
-  analyze-issue:
+  format-issue:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
       id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Ensure Tetris labels exist
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh label create "bug"           --color "d73a4a" --description "Something isn't working"                          --force
-          gh label create "enhancement"   --color "a2eeef" --description "New feature or request"                           --force
-          gh label create "question"      --color "d876e3" --description "Further information is requested"                 --force
-          gh label create "game-logic"    --color "0075ca" --description "Piece movement, rotation, collision, or scoring"  --force
-          gh label create "ui/ux"         --color "e4e669" --description "Canvas rendering, visual appearance, layout"      --force
-          gh label create "performance"   --color "f9d0c4" --description "Frame rate, animation loop, or timing issues"     --force
-          gh label create "documentation" --color "0052cc" --description "Improvements or additions to documentation"       --force
-          gh label create "collision"     --color "b60205" --description "Collision detection between pieces and board"     --force
-          gh label create "scoring"       --color "e99695" --description "Score calculation, line clears, or level logic"   --force
-
-      - name: Analyze issue with Claude
+      - name: Format issue with Claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Bash(gh issue *)"
           prompt: |
-            You are an automated issue analyst for a browser-based Tetris game repository.
-
-            The repository contains three files with no build step or dependencies:
-            - index.html: DOM skeleton with two canvases — board (300×600 px, id="board") and next-piece preview (120×120 px, id="next-canvas") — plus HUD elements (#score, #lines, #level) and a single #overlay div reused for both PAUSE and GAME OVER states.
-            - style.css: Dark/retro theme. JS only ever toggles overlay.classList ('hidden') — no other classes are added or removed by JS.
-            - game.js: ~305 lines, all game logic, 'use strict', no modules or external dependencies.
-
-            Key architectural facts about game.js:
-            - board is a ROWS×COLS (20×10) number array; 0=empty, 1–7=piece color index
-            - current and next are { type, shape, x, y } objects representing active and preview pieces
-            - Core flow: init() → spawn() → requestAnimationFrame(loop)
-            - loop(ts): accumulates dt, drops piece each tick, calls lockPiece() on collision, then draw()
-            - lockPiece(): merge() → clearLines() → spawn()
-            - spawn(): if new piece immediately collides → endGame()
-            - rotateCW(shape): clockwise rotation via transpose+reverse
-            - tryRotate(): attempts rotation with wall-kick offsets [0, -1, 1, -2, 2]; applies first non-colliding kick
-            - dropInterval = Math.max(100, 1000 - (level - 1) * 90) ms; level increases every 10 lines
-            - LINE_SCORES = [0, 100, 300, 500, 800] * level; hard drop scores 2 pts per row
-            - ghostY() projects landing row; hardDrop() scores the distance
-            - Canvas sizing: COLS × BLOCK wide, ROWS × BLOCK tall — if these constants change, index.html canvas size must match
-
-            A new issue has been filed on this repository:
-
-            Issue #${{ github.event.issue.number }}
-            Event: ${{ github.event.action }}
-            Title: ${{ github.event.issue.title }}
-            Body:
-            ${{ github.event.issue.body }}
-
-            ---
-
+            You are a GitHub issue formatter for a Tetris game project (vanilla JS/HTML/CSS, no dependencies).
+            An issue was just ${{ github.event.action }} with the following details:
+            - Issue number: #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
+            - Body: ${{ github.event.issue.body }}
+            - Author: ${{ github.event.issue.user.login }}
             Your tasks:
-
-            TASK 1 — LABEL ASSIGNMENT
-            Analyze the issue and assign one or more labels. Use only labels from this exact list:
-              bug, enhancement, question, game-logic, ui/ux, performance, documentation, collision, scoring
-
-            Label selection rules:
-            - "bug": something is broken or behaving incorrectly
-            - "enhancement": a new feature or improvement request
-            - "question": the reporter is asking how something works or for clarification
-            - "game-logic": involves piece movement, rotation, wall kicks, spawning, or locking mechanics
-            - "ui/ux": involves canvas drawing, ghost piece rendering, next-piece preview, overlay display, or controls layout
-            - "performance": involves frame rate, requestAnimationFrame timing, dropInterval accuracy, or animation jank
-            - "documentation": involves README, CLAUDE.md, code comments, or missing explanations
-            - "collision": specifically about the collide() function or piece/board boundary detection
-            - "scoring": specifically about clearLines(), LINE_SCORES, level calculation, or score display
-            - You may assign multiple labels when the issue spans concerns (e.g. both "bug" and "collision")
-            - If the issue body is empty or intent is unclear from the title alone, include "question"
-
-            Apply the labels with this command (replace with actual label names):
-              gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "label1,label2"
-
-            TASK 2 — DIAGNOSTIC COMMENT
-            First, check if a prior automated analysis comment already exists on this issue:
-              gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json comments --jq '.comments[] | select(.body | startswith("<!-- issue-analyzer-bot -->")) | .databaseId'
-
-            If a prior comment ID is returned, delete it:
-              gh api -X DELETE /repos/${{ github.repository }}/issues/comments/{comment_id}
-
-            Then post a single structured comment that begins with the hidden marker <!-- issue-analyzer-bot --> followed by this exact Markdown structure:
-
-            <!-- issue-analyzer-bot -->
-            ## Issue Analysis
-
-            **Type:** [Bug / Enhancement / Question / other as appropriate]
-            **Affected area:** [which file(s) and which specific function(s)]
-
-            ### Problem Summary
-            [1–2 sentences restating the issue in technical terms, referencing the specific variables or functions involved. If body was empty, say so and note that more context is needed.]
-
-            ### Root Cause Hypothesis
-            [Explain the most likely cause based on the game's architecture. Reference specific function names and variable names from game.js. For feature requests, describe what currently exists and what would need to change.]
-
-            ### Suggested Approach
-            [Concrete, step-by-step implementation notes referencing exact function names and variables. For bugs: how to reproduce and what the fix looks like. For enhancements: where new code goes and which data structures or rendering calls change.]
-
-            ### Relevant Code Areas
-            [List the specific functions in game.js that are most relevant: e.g. `collide()`, `tryRotate()`, `clearLines()`, `draw()`, `lockPiece()`, etc.]
-
-            ---
-            *Automated analysis by Claude — trigger: issue ${{ github.event.action }} on #${{ github.event.issue.number }}*
-
-            Post the comment with:
-              gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "..."
+            1. **Add labels** based on the issue content. Use only these labels:
+               - `bug` — something is broken or behaving incorrectly
+               - `enhancement` — new feature or improvement request
+               - `question` — asking for help or clarification
+               - `documentation` — docs need updating
+               - `good first issue` — simple, beginner-friendly task
+               - `duplicate` — if it seems like a known/repeated problem
+            2. **Post a comment** on the issue that includes:
+               - A brief, friendly summary of what the issue is about (1-2 sentences)
+               - A "Formatted Report" section with:
+                 - **Type**: Bug / Feature Request / Question / Other
+                 - **Summary**: one clear sentence describing the problem or request
+                 - **Steps to reproduce** (for bugs): list them if not provided, ask the user to provide them if it's a bug
+                 - **Expected behavior** (for bugs): what should happen
+                 - **Suggested labels**: the labels you applied and why
+               - A closing note thanking the contributor
+            Use the `gh` CLI to apply labels and post the comment. Example commands:
+              gh issue edit ${{ github.event.issue.number }} --add-label "bug" --repo ${{ github.repository }}
+              gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}
+            Be concise, helpful, and friendly. Do not over-engineer the response.
