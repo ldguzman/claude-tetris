@@ -29,6 +29,7 @@ jobs:
             - Title: ${{ github.event.issue.title }}
             - Body: ${{ github.event.issue.body }}
             - Author: ${{ github.event.issue.user.login }}
+
             Your tasks:
             1. **Add labels** based on the issue content. Use only these labels:
                - `bug` — something is broken or behaving incorrectly
@@ -37,15 +38,42 @@ jobs:
                - `documentation` — docs need updating
                - `good first issue` — simple, beginner-friendly task
                - `duplicate` — if it seems like a known/repeated problem
-            2. **Post a comment** on the issue that includes:
-               - A brief, friendly summary of what the issue is about (1-2 sentences)
-               - A "Formatted Report" section with:
-                 - **Type**: Bug / Feature Request / Question / Other
-                 - **Summary**: one clear sentence describing the problem or request
-                 - **Steps to reproduce** (for bugs): list them if not provided, ask the user to provide them if it's a bug
-                 - **Expected behavior** (for bugs): what should happen
-                 - **Suggested labels**: the labels you applied and why
-               - A closing note thanking the contributor
+
+            2. **Post a comment** on the issue using the exact GitHub-flavored Markdown (GFM) template below.
+               Render all formatting as valid GFM: use `##` for headings, `**text**` for bold, `-` for bullet lists,
+               and wrap code/commands in backticks. Do NOT escape newlines or quotes inside the comment body.
+
+            Use this exact template for the comment body (fill in the bracketed placeholders):
+
+            ---
+            ## Thanks for opening this issue, @[AUTHOR]! 👋
+
+            [1–2 sentence friendly summary of what the issue is about.]
+
+            ---
+
+            ## 📋 Formatted Report
+
+            | Field | Details |
+            |-------|---------|
+            | **Type** | [Bug / Feature Request / Question / Other] |
+            | **Summary** | [One clear sentence describing the problem or request] |
+
+            [Include the section below ONLY for bugs:]
+            ### 🔁 Steps to Reproduce
+            [If provided, list them. If missing, write: "Please provide steps to reproduce this issue."]
+
+            ### ✅ Expected Behavior
+            [What should happen instead.]
+
+            ### 🏷️ Labels Applied
+            - `[label]` — [reason]
+
+            ---
+
+            *Thank you for contributing to this project! We'll review this issue shortly.*
+            ---
+
             Use the `gh` CLI to apply labels and post the comment. Example commands:
               gh issue edit ${{ github.event.issue.number }} --add-label "bug" --repo ${{ github.repository }}
               gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}
