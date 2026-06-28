@@ -39,6 +39,34 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggleBtn = document.getElementById('theme-toggle');
+
+const GRID_DARK = '#22222e';
+const GRID_LIGHT = '#c8c8e0';
+let gridColor = GRID_DARK;
+
+function applyTheme(isLight) {
+  if (isLight) {
+    document.body.classList.add('light');
+    themeToggleBtn.textContent = '☀️';
+    gridColor = GRID_LIGHT;
+  } else {
+    document.body.classList.remove('light');
+    themeToggleBtn.textContent = '🌙';
+    gridColor = GRID_DARK;
+  }
+}
+
+function toggleTheme() {
+  const isLight = !document.body.classList.contains('light');
+  applyTheme(isLight);
+  localStorage.setItem('tetris-theme', isLight ? 'light' : 'dark');
+}
+
+themeToggleBtn.addEventListener('click', toggleTheme);
+
+// Restore saved theme preference
+applyTheme(localStorage.getItem('tetris-theme') === 'light');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -169,7 +197,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
